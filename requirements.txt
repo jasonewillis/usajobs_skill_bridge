@@ -1,0 +1,6 @@
+streamlit
+geopy
+reportlab
+pandas
+python-dotenv
+# python>=3.11
