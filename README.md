@@ -73,7 +73,43 @@ See the `docs/` directory for:
 
 ## Testing
 
-Run tests with:
+The project includes both unit tests and integration tests. Tests are written using pytest.
+
+### Running Tests
+
+1. Install test dependencies:
 ```bash
-python -m pytest tests/
+pip install -r requirements.txt
 ```
+
+2. Run all tests:
+```bash
+python -m pytest
+```
+
+3. Run with coverage report:
+```bash
+python -m pytest --cov=src tests/
+```
+
+4. Run specific test categories:
+```bash
+# Run only unit tests
+python -m pytest tests/unit/
+
+# Run only integration tests
+python -m pytest tests/integration/
+```
+
+### Test Structure
+
+- `tests/unit/`: Unit tests for individual components
+  - `test_data_processor.py`: Tests for data processing utilities
+  - `test_config.py`: Tests for configuration management
+  
+- `tests/integration/`: Integration tests
+  - `test_usajobs_api.py`: Tests for USA Jobs API integration
+  - `test_streamlit_ui.py`: Tests for UI components
+  - `usajobs_api_test_notebook.ipynb`: Interactive API testing notebook
+
+Note: Some integration tests require a valid USAJOBS_API_KEY in your .env file.
