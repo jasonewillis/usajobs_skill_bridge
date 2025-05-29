@@ -80,8 +80,18 @@ class ConfigManager:
         if name not in self._required_fields:
             return True
         
+        # Special handling for job categories
+        if name == 'job_categories':
+            # Automatically transform education_job_mapping to job_categories if needed
+            if 'education_job_mapping' in config and 'job_categories' not in config:
+                config['job_categories'] = config['education_job_mapping']
+            # Check if any job categories exist
+            return bool(config.get('job_categories', {}))
+        
+        # Standard validation for other configs
         for field in self._required_fields[name]:
             if field not in config:
+                st.error(f"Missing required field '{field}' in {name} config")
                 return False
             
             # For API config, validate deeper structure
@@ -89,6 +99,7 @@ class ConfigManager:
                 api_config = config['api']
                 required_api_fields = ['host', 'base_url', 'default_params']
                 if not all(f in api_config for f in required_api_fields):
+                    st.error(f"Missing required API fields in {name} config")
                     return False
         
         return True
@@ -139,6 +150,17 @@ class ConfigManager:
                 if name in self._required_fields:
                     st.error(f"Configuration '{name}' is missing or invalid")
                 return self._default_values.get(name, {})
+            
+            # Special handling for job categories
+            if name == 'job_categories':
+                if 'education_job_mapping' in config and 'job_categories' not in config:
+                    return {'job_categories': config['education_job_mapping']}
+                elif 'job_categories' in config:
+                    return config
+                else:
+                    st.error("Job categories configuration is missing or invalid")
+                    return {'job_categories': {}}
+            
             return config
 
     def update_config(self, name: str, updates: Dict[str, Any]) -> bool:
