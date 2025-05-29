@@ -7,7 +7,7 @@ import os
 import requests
 import time
 from geopy.exc import GeocoderTimedOut, GeocoderUnavailable
-from src.utils.config import (
+from ..utils.config import (
     get_api_config,
     get_job_categories,
     get_ui_config,
@@ -112,8 +112,6 @@ def fetch_usajobs_jobs(keyword=None, location=None, pay_grade=None):
     except requests.exceptions.RequestException as e:
         st.error(f"Error fetching jobs: {str(e)}")
         return None
-    
-
 
 # --- Static sample job listings with coordinates ---
 static_job_categories = {
@@ -227,8 +225,6 @@ if st.sidebar.button("🔍 Test USAJobs API"):
     else:
         st.error("❌ Failed to connect to API")
 
-
-
 # --- Helper Functions ---
 @st.cache_data(ttl=3600)
 def get_coordinates(address, _geolocator=None):
@@ -337,7 +333,7 @@ if submit:
         
         # Get coordinates
         coords = get_coordinates(user["address"])
-        if not coords[0]:
+        if not coords:
             st.error("Could not geocode your address. Please check and try again.")
         else:
             # Try live data first if enabled
@@ -388,7 +384,7 @@ if submit:
                         job_coords = get_coordinates(location_display)
                         
                         # Check distance if coordinates are available
-                        if coords[0] and job_coords[0] and not show_all_locations:
+                        if coords and job_coords and not show_all_locations:
                             distance = calculate_distance(coords, job_coords)
                             distance_match = distance <= max_distance
                         
@@ -439,7 +435,7 @@ if submit:
                             }
                             
                             # Add distance if available
-                            if coords[0] and job_coords[0]:
+                            if coords and job_coords:
                                 job["DistanceFromUser"] = round(calculate_distance(coords, job_coords), 2)
                                 
                             matches.append(job)
@@ -448,53 +444,32 @@ if submit:
                 else:
                     st.warning("No live jobs found. Falling back to sample data...")
                     # Choose appropriate sample data based on user skills and education
-                    sample_data = []
                     if any(tech_term in " ".join(user["skills"]).lower() for tech_term in ["python", "sql", "data"]) or \
                        any(tech_term in user["degree"].lower() for tech_term in ["computer", "data", "information technology"]):
                         sample_data = static_job_categories["tech"]
                     else:
                         sample_data = static_job_categories["medical"]
                         
-                    matches_df = filter_jobs(
+                    matches_df = pd.DataFrame(filter_jobs(
                         sample_data,
                         coords,
                         max_distance,
-                        user_skills=user["skills"],
+                        user_skills=", ".join(user["skills"]),
                         user_education=user["degree"]
-                    )
+                    ))
             else:
                 # Use sample data based on user profile
-                sample_data = []
                 if any(tech_term in " ".join(user["skills"]).lower() for tech_term in ["python", "sql", "data"]) or \
                    any(tech_term in user["degree"].lower() for tech_term in ["computer", "data", "information technology"]):
                     sample_data = static_job_categories["tech"]
                 else:
                     sample_data = static_job_categories["medical"]
                     
-                matches_df = filter_jobs(
-                    sample_data,
-                    coords,
-                    max_distance,
-                    user_skills=user["skills"],
-                    user_education=user["degree"]
-                )
-            
+                matches_df = pd.DataFrame(sample_data)
+
             # Display results
             st.success(f"Found {len(matches_df)} matching jobs!")
             st.dataframe(matches_df)
-            
-            # PDF functionality temporarily disabled
-            # pdf_filename = "job_report.pdf"
-            # generate_pdf_report(user, matches_df, pdf_filename)
-            
-            # with open(pdf_filename, "rb") as f:
-            #     pdf_bytes = f.read()
-            #     st.download_button(
-            #         label="📄 Download Job Report (PDF)",
-            #         data=pdf_bytes,
-            #         file_name=pdf_filename,
-            #         mime="application/pdf"
-            #     )
 
             st.session_state["user_location"] = address
 

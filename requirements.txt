@@ -15,4 +15,4 @@ pytest-mock>=3.6.1  # For mocking
 requests-mock>=1.9.3  # For mocking HTTP requests
 
 # Python version
-python>=3.11
+python>=3.9,<3.14
