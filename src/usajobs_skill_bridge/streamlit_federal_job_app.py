@@ -7,7 +7,7 @@ import os
 import requests
 import time
 from geopy.exc import GeocoderTimedOut, GeocoderUnavailable
-from ..utils.config import (
+from src.utils.config import (
     get_api_config,
     get_job_categories,
     get_ui_config,

@@ -1,6 +1,12 @@
 [server]
 # The path to the Streamlit app file
-mainScriptPath = "src/ui/streamlit_federal_job_app.py"
+mainScriptPath = "src/usajobs_skill_bridge/streamlit_federal_job_app.py"
+headless = true
+fileWatcherType = "poll"
+
+[browser]
+serverAddress = "0.0.0.0"
+serverPort = 8501
 
 [logger]
 level = "info"
