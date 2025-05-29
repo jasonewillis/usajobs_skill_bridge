@@ -124,10 +124,12 @@ class ConfigManager:
                         continue
     
         # Add required keys if missing
-        if "job_categories" in self._configs and "job_categories" not in self._configs["job_categories"]:
-            self._configs["job_categories"]["job_categories"] = self._configs["job_categories"].get(
-                "education_job_mapping", {}
-            )
+        # Handle job categories specially
+        if "job_categories" in self._configs:
+            if "job_categories" not in self._configs["job_categories"]:
+                self._configs["job_categories"] = {
+                    "job_categories": self._configs["job_categories"].get("education_job_mapping", {})
+                }
 
     def get_config(self, name: str) -> Dict[str, Any]:
         """Get a specific configuration with validation."""
