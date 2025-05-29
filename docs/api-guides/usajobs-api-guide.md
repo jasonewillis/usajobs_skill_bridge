@@ -26,22 +26,21 @@ Search for job announcements with various filters and parameters.
 Parameters:
 - Page: Page number for results
 - ResultsPerPage: Number of results per page (default: 25)
-- Keyword: Search term
-- LocationName: Location to search in
+- Keyword: Search term (optional)
+- LocationName: Location to search in (optional)
+- PayGrade: Pay grade filter (optional)
 - DatePosted: Number of days since announcement was posted
 - JobCategoryCode: Job category codes
 
-### 2. Historic Job Announcements
-```
-GET /api/HistoricJoa
-```
-Retrieve historical job announcements.
+All search parameters are now optional, providing more flexibility in searching. The API will return all available jobs if no parameters are specified, subject to pagination limits.
 
-### 3. Announcement Text
-```
-GET /api/HistoricJoa/AnnouncementText
-```
-Get the full text of a specific job announcement.
+### Error Handling and Response Validation
+The application now includes:
+- Proper response validation
+- Connection timeout handling (5 seconds default)
+- Automatic retries with exponential backoff
+- Graceful fallback to cached data
+- Informative error messages
 
 ## Code Lists
 The API provides various code list endpoints for reference data:

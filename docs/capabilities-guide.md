@@ -69,15 +69,30 @@ This guide helps answer common questions about what the Federal Job Roadmap appl
 
 ### Data Reliability
 [+] **Available Features:**
-- Live USAJOBS API integration
+- Live USAJOBS API integration with flexible parameters
 - Fallback to sample data when API is unavailable
 - Automatic retry for failed requests
-- Cache support (when enabled)
+- Improved caching support with proper validation
+- Optional location and keyword parameters
+- Configurable request timeout handling
 
 [-] **Limitations:**
 - API limited to 1000 requests per hour
-- Cache currently disabled
-- May experience delays during high traffic
+- Some cached data may be slightly outdated
+- Network connectivity required for live data
+
+### Configuration Management
+[+] **Available Features:**
+- Automatic project root detection
+- Environment-specific configuration support
+- Validated configuration with default fallbacks
+- Secure API key management
+- Flexible configuration overrides
+- Test-friendly configuration setup
+
+[-] **Limitations:**
+- Manual configuration backup not implemented
+- Limited to predefined configuration options
 
 ### Labor Market Information (BLS Integration)
 [+] **Available Features:**

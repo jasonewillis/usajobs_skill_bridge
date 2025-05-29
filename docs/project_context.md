@@ -10,17 +10,19 @@ The Federal Job Roadmap is a Streamlit-based application designed to help vetera
 - Education and skills-based job matching
 - Professional PDF report generation
 - Veteran preference handling
+- Comprehensive test coverage
+- Robust configuration management
 
 ## Technical Stack
-- **Frontend**: Streamlit
-- **API Integration**: USAJOBS API
+- **Frontend**: Streamlit with mocked components for testing
+- **API Integration**: USAJOBS API with optional parameters
 - **Data Processing**: Pandas, GeoPy
 - **PDF Generation**: ReportLab
 - **Environment Management**: Python venv (Python 3.11)
 - **Version Control**: Git
 - **Geocoding**: Nominatim
 - **Documentation**: Markdown
-- **Testing**: Jupyter Notebook for API testing
+- **Testing Framework**: Pytest with comprehensive coverage
 
 ## Project Structure
 ```
@@ -155,5 +157,22 @@ The application uses the USAJOBS API with the following considerations:
 - Connection timeout: 5 seconds
 - Geocoding retries: 3 attempts with 2-second delays
 - API fallback: Uses static sample data when API is unavailable
+
+## Test Coverage
+- **Integration Tests**:
+  - Streamlit UI components (6 tests)
+  - USAJOBS API integration (4 tests)
+  - Proper caching and state management
+- **Unit Tests**:
+  - Configuration management (4 tests)
+  - Data processing (2 tests)
+  - Edge case handling
+  - Parameter validation
+
+## Configuration Management
+- Path resolution with proper project root detection
+- Validated configuration with default fallbacks
+- Environment-specific settings support
+- Secure API key management
 
 Last Updated: May 28, 2025
