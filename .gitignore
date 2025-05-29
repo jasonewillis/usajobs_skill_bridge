@@ -2,6 +2,7 @@
 .DS_Store
 .AppleDouble
 .LSOverride
+._*
 
 # Python
 __pycache__/
@@ -24,6 +25,9 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+.pytest_cache/
+.coverage
+htmlcov/
 
 # Virtual Environment
 usajobs_env/
@@ -52,12 +56,14 @@ data/raw/*
 data/processed/ComparisonToolData.*
 samples/_Archive/
 US/US.zip
+US/US.txt
+US/readme.txt
 
 # Large data files
 *.csv
 *.xlsx
 *.xls
-large_*.json  # JSON files over 100MB
+large_*.json
 DataSources/~$*
 SampleReports/_Archive/
 
@@ -85,3 +91,9 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+
+# Cache files
+*.pyc
+.cache
+__pycache__/
+.pytest_cache/

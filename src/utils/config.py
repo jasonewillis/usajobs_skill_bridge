@@ -12,22 +12,41 @@ class ConfigManager:
     _lock: ClassVar[threading.Lock] = threading.Lock()
     _configs: Dict[str, Dict[str, Any]] = {}
     _required_fields: ClassVar[Dict[str, List[str]]] = {
-        'api_config': ['api', 'cache_ttl', 'request_timeout'],
-        'job_categories': ['education_job_mapping'],
-        'ui_config': ['layout', 'page_title', 'max_preview_jobs']
+        'api_config': ['api'],
+        'job_categories': ['job_categories'],
+        'ui_config': ['form_defaults', 'tech_search_terms']
     }
     _default_values: ClassVar[Dict[str, Dict[str, Any]]] = {
         'api_config': {
+            'api': {
+                'host': 'data.usajobs.gov',
+                'base_url': 'https://data.usajobs.gov/api/Search',
+                'default_params': {
+                    'ResultsPerPage': 50,
+                    'PayGradeLow': '5',
+                    'SortField': 'Relevance',
+                    'SortDirection': 'Desc',
+                    'Page': 1,
+                    'WhoMayApply': 'all'
+                }
+            },
             'cache_ttl': 3600,
-            'request_timeout': 15,
             'max_retries': 3,
-            'retry_delay': 1
+            'retry_delay': 1,
+            'request_timeout': 15
         },
         'ui_config': {
             'layout': 'wide',
             'page_title': 'Federal Job Roadmap',
-            'max_preview_jobs': 5,
-            'debug_mode': False
+            'page_icon': '🏛️',
+            'debug_mode': False,
+            'form_defaults': {
+                'location': 'Washington, DC',
+                'radius': 25,
+                'keywords': [],
+                'pay_grade': 'all',
+                'job_series': 'all'
+            }
         }
     }
 
@@ -47,88 +66,68 @@ class ConfigManager:
         """Apply default values to configuration."""
         if name in self._default_values:
             defaults = self._default_values[name].copy()
-            defaults.update(config)
+            if config:
+                for key, value in config.items():
+                    if isinstance(value, dict) and key in defaults and isinstance(defaults[key], dict):
+                        defaults[key].update(value)
+                    else:
+                        defaults[key] = value
             return defaults
         return config
 
     def validate_config(self, name: str, config: Dict[str, Any]) -> bool:
-        """Validate configuration structure and required fields."""
+        """Validate that a configuration has all required fields."""
         if name not in self._required_fields:
             return True
-
-        # Check required fields
-        missing_fields = []
+        
         for field in self._required_fields[name]:
             if field not in config:
-                missing_fields.append(field)
-        
-        if missing_fields:
-            st.warning(f"Missing required fields in {name}: {', '.join(missing_fields)}")
-            return False
-
-        # Validate specific configuration schemas
-        try:
-            if name == 'api_config':
-                if not isinstance(config['api'], dict):
-                    st.error("api_config: 'api' must be an object")
-                    return False
-                if not isinstance(config.get('cache_ttl', 0), (int, float)):
-                    st.error("api_config: 'cache_ttl' must be a number")
-                    return False
-                    
-            elif name == 'job_categories':
-                if not isinstance(config['education_job_mapping'], dict):
-                    st.error("job_categories: 'education_job_mapping' must be an object")
-                    return False
-                for field, info in config['education_job_mapping'].items():
-                    if not isinstance(info.get('keywords', []), list):
-                        st.error(f"job_categories: keywords for {field} must be a list")
-                        return False
-                        
-            elif name == 'ui_config':
-                if not isinstance(config.get('max_preview_jobs', 5), int):
-                    st.error("ui_config: 'max_preview_jobs' must be an integer")
-                    return False
-                if not isinstance(config.get('layout', ''), str):
-                    st.error("ui_config: 'layout' must be a string")
-                    return False
-                    
-        except Exception as e:
-            st.error(f"Error validating {name}: {str(e)}")
-            return False
+                return False
             
+            # For API config, validate deeper structure
+            if name == 'api_config' and field == 'api':
+                api_config = config['api']
+                required_api_fields = ['host', 'base_url', 'default_params']
+                if not all(f in api_config for f in required_api_fields):
+                    return False
+        
         return True
 
     def load_all_configs(self):
-        """Load all configuration files with validation and default values."""
-        config_dir = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)),
-            'config'
-        )
-        config_files = ['api_config.json', 'job_categories.json', 'ui_config.json', 'sample_jobs.json']
+        """Load all configuration files from the config directory."""
+        # Start from the current file's directory
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        # Go up to src directory
+        src_dir = os.path.dirname(current_dir)
+        # Go up to project root
+        project_root = os.path.dirname(src_dir)
+        # Config directory is at project root
+        config_dir = os.path.join(project_root, 'config')
         
-        for file in config_files:
-            name = file.replace('.json', '')
-            try:
-                with open(os.path.join(config_dir, file), 'r') as f:
-                    config = json.load(f)
-                
-                # Apply default values
-                config = self._apply_defaults(name, config)
-                
-                if self.validate_config(name, config):
-                    self._configs[name] = config
-                    if st.session_state.get('debug_mode', False):
-                        st.write(f"✅ Loaded and validated {file}")
-                else:
-                    st.error(f"Invalid configuration in {file}")
-                    self._configs[name] = self._default_values.get(name, {})
-            except json.JSONDecodeError as e:
-                st.error(f"Invalid JSON in {file}: {str(e)}")
-                self._configs[name] = self._default_values.get(name, {})
-            except Exception as e:
-                st.error(f"Error loading {file}: {str(e)}")
-                self._configs[name] = self._default_values.get(name, {})
+        # Override config directory if set manually (for testing)
+        if hasattr(self, 'config_dir'):
+            config_dir = self.config_dir
+        
+        if not os.path.exists(config_dir):
+            raise FileNotFoundError(f"Config directory not found: {config_dir}")
+        
+        for filename in os.listdir(config_dir):
+            if filename.endswith('.json'):
+                name = os.path.splitext(filename)[0]
+                with open(os.path.join(config_dir, filename), 'r') as f:
+                    try:
+                        config = json.load(f)
+                        config = self._apply_defaults(name, config)
+                        if self.validate_config(name, config):
+                            self._configs[name] = config
+                    except json.JSONDecodeError:
+                        continue
+    
+        # Add required keys if missing
+        if "job_categories" in self._configs and "job_categories" not in self._configs["job_categories"]:
+            self._configs["job_categories"]["job_categories"] = self._configs["job_categories"].get(
+                "education_job_mapping", {}
+            )
 
     def get_config(self, name: str) -> Dict[str, Any]:
         """Get a specific configuration with validation."""

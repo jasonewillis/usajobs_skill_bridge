@@ -76,7 +76,7 @@ def verify_usajobs_connection():
 
 # --- Fetching Jobs from USAJOBS API ---
 @st.cache_data(ttl=API_CONFIG.get('cache_ttl', 3600))
-def fetch_usajobs_jobs(keyword="police", location="Las Vegas, NV"):
+def fetch_usajobs_jobs(keyword=None, location=None, pay_grade=None):
     """
     Fetch jobs from USAJOBS API with enhanced search capabilities and debugging.
     Uses cached configuration and implements retry logic.
@@ -84,177 +84,35 @@ def fetch_usajobs_jobs(keyword="police", location="Las Vegas, NV"):
     # Debug: Show API configuration
     st.write("🔧 API Configuration:")
     st.write("- API Key:", "✅ Present" if USAJOBS_API_KEY else "❌ Missing")
-    
+
     headers = {
         "Host": API_CONFIG['api']['host'],
         "User-Agent": "jasonewillis@gmail.com",
         "Authorization-Key": USAJOBS_API_KEY
     }
-    
-    # Use tech keywords from configuration
-    tech_keywords = [f'"{kw}"' for kw in UI_CONFIG['tech_search_terms']]
-    
-    # Properly handle comma-separated keywords
-    keywords_list = [k.strip() for k in keyword.split(',') if k.strip()]
-    search_parts = [f'"{k}"' for k in keywords_list]
-    
-    # For tech-related searches, add specialized keywords
-    if any(tech_term in keyword.lower() for tech_term in ["python", "sql", "developer", "software", "computer", "it", "data"]):
-        tech_query = " OR ".join(tech_keywords)
-        if search_parts:
-            search_query = f"({' OR '.join(search_parts)}) OR ({tech_query})"
-        else:
-            search_query = tech_query
-    else:
-        search_query = " OR ".join(search_parts)
-    
-    st.write("🔍 Search Configuration:")
-    st.write(f"- Base Keywords: {keyword}")
-    st.write(f"- Full Query: {search_query}")
-    
-    # Determine appropriate job categories based on keywords
-    job_categories = []
-    keyword_lower = keyword.lower()
-    
-    # Get mappings from configuration
-    for field, info in JOB_CATEGORIES.get('education_job_mapping', {}).items():
-        if any(kw.lower() in keyword_lower for kw in info.get('keywords', [])):
-            # Add specific job series based on field
-            if field == 'data_analytics':
-                job_categories.extend(['1530', '1550'])  # Statistics and Computer Science
-            elif field == 'computer_science':
-                job_categories.append('2210')  # IT Management
-            elif field == 'information_technology':
-                job_categories.extend(['2210', '0391'])  # IT Management and Telecommunications
-    
-    # Default to IT Management if no specific categories matched
-    if not job_categories:
-        job_categories = ['2210']
 
-    # Enhanced search parameters
-    # Start with default parameters from config
     params = API_CONFIG['api']['default_params'].copy()
     
-    # Add request-specific parameters
-    params.update({
-        "Keyword": search_query,
-        "LocationName": location,
-        "JobCategoryCode": ",".join(job_categories),
-    })
-    
+    if keyword:
+        params["Keyword"] = keyword
+    if location:
+        params["LocationName"] = location
+    if pay_grade:
+        params["PayGradeLow"] = pay_grade.replace("GS-", "")
+
     try:
-        # Enhanced error handling with retries
-        max_retries = 3
-        retry_delay = 1  # seconds
-        response = None
-        
-        for attempt in range(max_retries):
-            try:
-                st.write(f"🔄 API Request Attempt {attempt + 1}/{max_retries}")
-                
-                response = requests.get(
-                    "https://data.usajobs.gov/api/Search", 
-                    headers=headers, 
-                    params=params,
-                    timeout=15  # Increased timeout
-                )
-                
-                # Show detailed response information
-                st.write("📊 Response Information:")
-                st.write(f"- Status: {response.status_code}")
-                st.write(f"- Content Type: {response.headers.get('Content-Type', 'unknown')}")
-                st.write(f"- Response Time: {response.elapsed.total_seconds():.2f}s")
-                
-                if response.status_code == 200:
-                    break
-                elif response.status_code == 429:  # Rate limit
-                    if attempt < max_retries - 1:
-                        wait_time = min(retry_delay * (2 ** attempt), 8)  # Exponential backoff
-                        st.warning(f"Rate limit reached. Waiting {wait_time}s before retry...")
-                        time.sleep(wait_time)
-                        continue
-                st.error(f"API Error {response.status_code}: {response.text}")
-                return None
-                
-            except requests.Timeout:
-                if attempt < max_retries - 1:
-                    st.warning("Request timed out. Retrying...")
-                    continue
-                st.error("Maximum retries reached after timeouts.")
-                return None
-            except requests.ConnectionError:
-                st.error("Connection error. Please check your internet connection.")
-                return None
-            
-        if not response or response.status_code != 200:
-            st.error("Failed to get a successful response after multiple attempts.")
-            return None
-            
-        # Process response data with enhanced error handling
-        try:
-            data = response.json()
-            
-            # Validate response structure
-            search_result = data.get("SearchResult", {})
-            if not search_result:
-                st.error("Invalid API response structure: missing SearchResult")
-                return None
-
-            result_count = search_result.get("SearchResultCount", 0)
-            items = search_result.get("SearchResultItems", [])
-            
-            # Log response metrics
-            st.write("📝 Response Summary:")
-            st.write(f"- Total Results: {result_count}")
-            st.write(f"- Results in this page: {len(items)}")
-            
-            # Show detailed job information with enhanced formatting
-            if items:
-                st.write("📋 Jobs Found:")
-                for item in items[:UI_CONFIG.get('max_preview_jobs', 5)]:
-                    desc = item.get("MatchedObjectDescriptor", {})
-                    position = desc.get("PositionTitle", "No Title")
-                    org = desc.get("OrganizationName", "Unknown Organization")
-                    location = desc.get("PositionLocationDisplay", "Unknown Location")
-                    pay = desc.get("PositionRemuneration", [{}])[0]
-                    grade = desc.get("JobGrade", [{}])[0].get("Code", "Unknown")
-                    
-                    # Format salary range
-                    min_salary = "${:,.2f}".format(float(pay.get('MinimumRange', 0)))
-                    max_salary = "${:,.2f}".format(float(pay.get('MaximumRange', 0)))
-                    
-                    st.write(f"- 💼 {position} (Grade: {grade})")
-                    st.write(f"  🏢 Organization: {org}")
-                    st.write(f"  📍 Location: {location}")
-                    st.write(f"  💰 Salary Range: {min_salary} - {max_salary}")
-                    
-                    # Show required education if available
-                    qualification_summary = desc.get("QualificationSummary", "")
-                    if qualification_summary:
-                        with st.expander("📚 Qualification Requirements"):
-                            st.write(qualification_summary)
-            
-            # Store raw response in session state for debugging
-            if st.session_state.get('debug_mode', False):
-                with st.expander("🔍 View Full API Response"):
-                    st.json(data)
-                    
-            return data
-            
-        except ValueError as e:
-            st.error(f"Failed to parse API response: {str(e)}")
-            if st.session_state.get('debug_mode', False):
-                st.error(f"Raw response: {response.text}")
-            return None
-        except Exception as e:
-            st.error(f"Unexpected error processing response: {str(e)}")
-            return None
-
-    except Exception as e:
-        st.error(f"Unexpected error during API request: {str(e)}")
+        response = requests.get(
+            API_CONFIG['api']['base_url'],
+            headers=headers,
+            params=params,
+            timeout=API_CONFIG.get('request_timeout', 15)
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error fetching jobs: {str(e)}")
         return None
     
-
 
 
 # --- Static sample job listings with coordinates ---
@@ -372,208 +230,76 @@ if st.sidebar.button("🔍 Test USAJobs API"):
 
 
 # --- Helper Functions ---
-def get_coordinates(address, max_retries=3, timeout=5):
-    """Get coordinates for an address with retry logic and caching."""
-    geolocator = Nominatim(
-        user_agent="fed-career-map",
-        timeout=timeout
-    )
+@st.cache_data(ttl=3600)
+def get_coordinates(address, _geolocator=None):
+    """Get coordinates for an address using a cached geocoder."""
+    if _geolocator is None:
+        _geolocator = Nominatim(user_agent="federal_job_roadmap")
     
-    # Try to get cached coordinates first
-    coords = cached_get_coordinates(address, geolocator)
-    if coords[0] is not None:
-        return coords
-            
-    # If not in cache, try with retries
-    for attempt in range(max_retries):
-        try:
-            location = geolocator.geocode(address)
-            if location:
-                return (location.latitude, location.longitude)
-            return (None, None)
-            
-        except (GeocoderTimedOut, GeocoderUnavailable) as e:
-            if attempt == max_retries - 1:
-                st.error(f"Geocoding service unavailable: {str(e)}")
-                return (None, None)
-            st.warning(f"Attempt {attempt + 1} failed, retrying in 2 seconds...")
-            time.sleep(2)
-            
-        except Exception as e:
-            st.error(f"Unexpected error during geocoding: {str(e)}")
-            return (None, None)
+    try:
+        location = _geolocator.geocode(address)
+        if location:
+            return (location.latitude, location.longitude)
+        return None
+    except (GeocoderTimedOut, GeocoderUnavailable):
+        st.error(f"Error geocoding address: {address}")
+        return None
 
 def calculate_distance(user_coords, job_coords):
     return geodesic(user_coords, job_coords).miles
 
 def filter_jobs(jobs, user_coords, max_distance, user_skills=None, user_education=None):
-    """Filter jobs based on location, skills, and education."""
-    results = []
+    """Filter jobs based on distance and optional skills/education criteria."""
+    if not jobs:
+        return []
     
-    # Debug: Show incoming data
-    st.write("🔍 Debug - Filtering Process:")
-    st.write(f"- Number of jobs to filter: {len(jobs)}")
-    st.write(f"- User coordinates: {user_coords}")
-    st.write(f"- Max distance: {max_distance}")
-    st.write(f"- User skills: {user_skills}")
-    st.write(f"- User education: {user_education}")
-    
-    # Enhanced education-job mapping with more tech roles
-    education_job_mapping = {
-        "data analytics": [
-            "data", "analyst", "analytics", "statistics", "data science",
-            "data engineering", "business intelligence", "quantitative",
-            "machine learning", "forecasting", "modeling", "python", "sql"
-        ],
-        "computer science": [
-            "software", "developer", "engineer", "programmer", "analyst",
-            "it", "information technology", "systems", "data", "database",
-            "computer", "tech", "application", "devops", "cloud", "security"
-        ],
-        "information technology": [
-            "it", "information technology", "systems", "network", "support",
-            "security", "administrator", "cloud", "infrastructure"
-        ],
-        "data science": [
-            "data", "analyst", "scientist", "analytics", "machine learning",
-            "statistics", "research", "python", "sql", "database"
-        ],
-        "software engineering": [
-            "software", "developer", "engineer", "programmer", "web",
-            "full stack", "backend", "frontend", "mobile", "devops"
-        ],
-        "cybersecurity": [
-            "security", "cyber", "information assurance", "network",
-            "analyst", "engineer", "administrator", "compliance"
-        ],
-        # Keep existing mappings
-        "nursing": ["nurse", "rn", "lpn", "clinical", "healthcare"],
-        "medical": ["health", "medical", "clinical", "healthcare"],
-        "criminal justice": ["police", "security", "law enforcement", "criminal"],
-        "business": ["manager", "analyst", "administrator", "coordinator"],
-        "engineering": ["engineer", "technical", "systems", "mechanical", "electrical"]
-    }
+    filtered_jobs = []
     
     for job in jobs:
-        # Initialize match flags
-        distance_match = True
-        skills_match = True
-        education_match = True
-
-        # Distance filter
-        if not show_all_locations and user_coords and job.get("JobCoordinates"):
-            distance = calculate_distance(user_coords, job["JobCoordinates"])
-            distance_match = distance <= max_distance
-            if distance_match:
-                job["DistanceFromUser"] = round(distance, 2)
+        job_data = job.get("MatchedObjectDescriptor", {})
         
-        # Enhanced skills matching with better tech skills handling
-        if user_skills:
-            user_skills_lower = [skill.lower().strip() for skill in user_skills]
+        # Extract job location
+        job_locations = job_data.get("PositionLocation", [])
+        if not job_locations:
+            continue
+        
+        # Calculate distance for each job location
+        for loc in job_locations:
+            loc_name = loc.get("LocationName")
+            if not loc_name:
+                continue
             
-            # Get all searchable text
-            searchable_text = job.get("PositionTitle", "").lower()
-            if job.get("Keywords"):  # For static data
-                searchable_text += " " + " ".join(kw.lower() for kw in job["Keywords"])
-            if job.get("QualificationSummary"):  # For API data
-                searchable_text += " " + job["QualificationSummary"].lower()
+            job_coords = get_coordinates(loc_name)
+            if not job_coords:
+                continue
             
-            # Common tech skill variations
-            tech_skill_variations = {
-                "python": ["python programming", "python developer", "python script"],
-                "sql": ["database", "sql server", "mysql", "postgresql"],
-                "javascript": ["js", "node.js", "nodejs", "react", "angular"],
-                "java": ["java developer", "java programming", "j2ee"],
-                "c#": ["c sharp", "dotnet", ".net", "asp.net"],
-                "cloud": ["aws", "azure", "gcp", "cloud computing"],
-                "devops": ["ci/cd", "jenkins", "docker", "kubernetes"],
-                "data science": ["machine learning", "ai", "deep learning", "analytics"]
-            }
+            distance = calculate_distance(user_coords, job_coords)
             
-                    # Default to no match until we find one
-            skills_match = False
-            
-            # Check each user skill against searchable text
-            required_skills_found = 0
-            for skill in user_skills_lower:
-                skill_found = False
+            # Check if within max distance
+            if distance <= max_distance:
+                # Add distance to job data
+                job["calculatedDistance"] = distance
                 
-                # Check exact match first
-                if skill in searchable_text:
-                    skill_found = True
-                # Check variations without spaces/hyphens
-                elif (skill.replace(" ", "") in searchable_text or 
-                    skill.replace("-", "") in searchable_text):
-                    skill_found = True
-                # Check tech variations if applicable
-                else:
-                    for tech_skill, variations in tech_skill_variations.items():
-                        if tech_skill in skill.lower():
-                            if any(var in searchable_text for var in variations):
-                                skill_found = True
-                                break
+                # Filter by skills if provided
+                if user_skills:
+                    job_description = job_data.get("QualificationSummary", "").lower()
+                    user_skills_list = [s.strip().lower() for s in user_skills.split(",")]
+                    if not any(skill in job_description for skill in user_skills_list):
+                        continue
                 
-                if skill_found:
-                    required_skills_found += 1
-            
-            # Require all skills to match for technical positions
-            if any(tech_term in " ".join(user_skills_lower) for tech_term in ["python", "sql", "developer", "software"]):
-                skills_match = required_skills_found == len(user_skills_lower)
-            else:
-                # For non-technical positions, require at least one skill match
-                skills_match = required_skills_found > 0
-            
-            # Debug output for skills matching
-            st.write(f"\nSkills matching for {job.get('PositionTitle')}:")
-            st.write(f"- User skills: {user_skills_lower}")
-            st.write(f"- Searchable text excerpt: {searchable_text[:200]}...")
-            st.write(f"- Match found: {skills_match}")
-        
-        # Enhanced education matching
-        if user_education:
-            education_lower = user_education.lower()
-            searchable_text = job.get("PositionTitle", "").lower()
-            if job.get("QualificationSummary"):
-                searchable_text += " " + job["QualificationSummary"].lower()
-            
-                    # First, detect the degree level and field
-            degree_level = ""
-            if "phd" in education_lower or "doctorate" in education_lower:
-                degree_level = "phd"
-            elif "master" in education_lower or "ms" in education_lower or "ma" in education_lower:
-                degree_level = "master"
-            elif "bachelor" in education_lower or "bs" in education_lower or "ba" in education_lower:
-                degree_level = "bachelor"
-            
-            # Extract the field of study
-            field_found = False
-            for edu_field in education_job_mapping.keys():
-                if edu_field in education_lower:
-                    field_found = True
-                    # Check if job matches the field
-                    education_match = any(kw in searchable_text for kw in education_job_mapping[edu_field])
-                    if education_match:
-                        break
-            
-            # If no specific field match found, check general degree requirements
-            if not field_found:
-                education_match = any(edu in searchable_text 
-                                   for edu in ["degree", degree_level, "bachelor", "master", "phd", 
-                                             "diploma", education_lower])
-            
-            # Debug output for education matching
-            st.write(f"\nEducation matching for {job.get('PositionTitle')}:")
-            st.write(f"- Education: {education_lower}")
-            st.write(f"- Searchable text excerpt: {searchable_text[:200]}...")
-            st.write(f"- Match found: {education_match}")
-        
-        # Only include job if all applicable filters match
-        if all([distance_match, skills_match, education_match]):
-            results.append(job)
+                # Filter by education if provided
+                if user_education:
+                    job_quals = job_data.get("QualificationSummary", "").lower()
+                    if user_education.lower() not in job_quals:
+                        continue
+                
+                # Add to filtered list and break inner loop
+                filtered_jobs.append(job)
+                break
     
-    # Debug: Show final results
-    st.write(f"\n✅ Filtering complete - Found {len(results)} matching jobs")
-    return pd.DataFrame(results)
+    # Sort by distance
+    filtered_jobs.sort(key=lambda x: x.get("calculatedDistance", float("inf")))
+    return filtered_jobs
 
 # --- Streamlit UI ---
 st.title("🇺🇸 Federal Job Roadmap")
